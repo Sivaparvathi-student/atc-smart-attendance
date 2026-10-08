@@ -1,0 +1,37 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# Environment Variables (NEVER commit)
+.env
+.env.local
+.env.*.local
+
+# Google Service Account (NEVER commit)
+service_account.json
+*.json
+
+# Database
+*.db
+*.sqlite3
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Static outputs
+static/qrcodes/

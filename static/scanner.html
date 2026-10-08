@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATC Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, Arial, sans-serif;
+            background: #111; color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 15px;
+            border-bottom: 2px solid #FFC107;
+            margin-bottom: 20px;
+        }
+        .header h1 { color: #FFC107; font-size: 20px; }
+        .header p { color: #888; font-size: 12px; }
+        #reader {
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        #feedback {
+            display: none;
+            padding: 30px 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+            animation: pop 0.3s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        #feedback.valid { background: #10b981; }
+        #feedback.dup { background: #f59e0b; }
+        #feedback.invalid { background: #ef4444; }
+        #feedback h2 { font-size: 26px; margin-bottom: 8px; }
+        #feedback p { font-size: 15px; opacity: 0.95; }
+        #feedback .student {
+            font-size: 22px; font-weight: bold;
+            margin: 12px 0;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px;
+            background: #222;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .stats div { text-align: center; }
+        .stats .num { font-size: 24px; color: #FFC107; font-weight: bold; }
+        .stats .lbl { font-size: 11px; color: #888; text-transform: uppercase; }
+        .status-bar {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            padding: 10px;
+        }
+        .status-bar.online { color: #10b981; }
+        .status-bar.offline { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎟️ ATC Scanner</h1>
+        <p>ALIET Techpreneur Club</p>
+    </div>
+
+    <div class="stats">
+        <div>
+            <div class="num" id="statPresent">0</div>
+            <div class="lbl">Present</div>
+        </div>
+        <div>
+            <div class="num" id="statTotal">0</div>
+            <div class="lbl">Total</div>
+        </div>
+        <div>
+            <div class="num" id="statAbsent">0</div>
+            <div class="lbl">Absent</div>
+        </div>
+    </div>
+
+    <div id="feedback"></div>
+    <div id="reader"></div>
+    <div class="status-bar" id="statusBar">🔴 Offline</div>
+
+    <script>
+        const API_URL = window.location.origin;
+        const EVENT_ID = 1; // Change this to your event ID
+        let TOKEN = localStorage.getItem("atc_token");
+        let scanning = false;
+
+        async function ensureLogin() {
+            if (!TOKEN) {
+                const email = prompt("Enter volunteer email:");
+                const password = prompt("Enter password:");
+                if (!email || !password) return false;
+
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+                if (!res.ok) {
+                    alert("Login failed");
+                    return false;
+                }
+                const data = await res.json();
+                TOKEN = data.access_token;
+                localStorage.setItem("atc_token", TOKEN);
+            }
+            document.getElementById("statusBar").textContent = "🟢 Online";
+            document.getElementById("statusBar").className = "status-bar online";
+            return true;
+        }
+
+        async function refreshStats() {
+            try {
+                const res = await fetch(`${API_URL}/scan/stats/${EVENT_ID}`, {
+                    headers: { "Authorization": `Bearer ${TOKEN}` }
+                });
+                if (!res.ok) return;
+                const s = await res.json();
+                document.getElementById("statPresent").textContent = s.present;
+                document.getElementById("statTotal").textContent = s.total_registered;
+                document.getElementById("statAbsent").textContent = s.absent;
+            } catch (e) { console.error(e); }
+        }
+
+        function showFeedback(data) {
+            const el = document.getElementById("feedback");
+            el.className = data.color === "green" ? "valid"
+                         : data.color === "orange" ? "dup"
+                         : "invalid";
+            el.style.display = "block";
+            el.innerHTML = `
+                <h2>${data.message}</h2>
+                ${data.student_name ? `<div class="student">${data.student_name}</div>` : ""}
+                ${data.student_roll ? `<p>Roll: ${data.student_roll}</p>` : ""}
+                ${data.check_in_time ? `<p>⏰ ${new Date(data.check_in_time).toLocaleTimeString()}</p>` : ""}
+            `;
+            // Beep for valid
+            if (data.color === "green") {
+                new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=").play().catch(()=>{});
+            }
+            setTimeout(() => { el.style.display = "none"; scanning = false; }, 3000);
+        }
+
+        async function handleScan(decodedText) {
+            if (scanning) return;
+            scanning = true;
+
+            try {
+                const res = await fetch(`${API_URL}/scan/verify`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${TOKEN}`
+                    },
+                    body: JSON.stringify({ token: decodedText })
+                });
+                const data = await res.json();
+                showFeedback(data);
+                refreshStats();
+            } catch (e) {
+                showFeedback({ message: "Network error", color: "red" });
+                scanning = false;
+            }
+        }
+
+        async function startScanner() {
+            const ok = await ensureLogin();
+            if (!ok) return;
+            refreshStats();
+            setInterval(refreshStats, 10000);
+
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => handleScan(decodedText),
+                () => {}
+            );
+        }
+
+        startScanner();
+    </script>
+</body>
+</html>

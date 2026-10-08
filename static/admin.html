@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATC Admin Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, Arial, sans-serif; background: #0f0f0f; color: #fff; padding: 20px; }
+        .header { text-align: center; padding: 15px; border-bottom: 2px solid #FFC107; margin-bottom: 20px; }
+        .header h1 { color: #FFC107; font-size: 22px; }
+        .header p { color: #888; font-size: 13px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 12px; border-left: 4px solid #FFC107; }
+        .card .label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 32px; color: #FFC107; font-weight: bold; margin-top: 8px; }
+        .section { background: #1a1a1a; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .section h2 { color: #FFC107; font-size: 16px; margin-bottom: 15px; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #2a2a2a; font-size: 13px; }
+        th { color: #888; font-size: 11px; text-transform: uppercase; }
+        .status-VALID { color: #10b981; }
+        .status-ALREADY_CHECKED_IN { color: #f59e0b; }
+        .status-INVALID, .status-NOT_REGISTERED { color: #ef4444; }
+        button { background: #FFC107; color: #000; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin: 5px; }
+        button:hover { background: #e0a800; }
+        .actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 ATC Admin Dashboard</h1>
+        <p>ALIET Techpreneur Club — Live Event Analytics</p>
+    </div>
+
+    <div class="actions">
+        <button onclick="refreshAll()">🔄 Refresh</button>
+        <button onclick="exportCSV()">📥 Export CSV</button>
+        <button onclick="autoRefresh()" id="autoBtn">▶ Auto-Refresh: OFF</button>
+    </div>
+
+    <div class="grid">
+        <div class="card"><div class="label">Total Registered</div><div class="value" id="total">-</div></div>
+        <div class="card"><div class="label">Present</div><div class="value" id="present" style="color:#10b981;">-</div></div>
+        <div class="card"><div class="label">Absent</div><div class="value" id="absent" style="color:#ef4444;">-</div></div>
+        <div class="card"><div class="label">Attendance %</div><div class="value" id="percent">-</div></div>
+    </div>
+
+    <div class="section">
+        <h2>👥 Volunteer Activity</h2>
+        <table id="volunteerTable">
+            <thead><tr><th>Volunteer</th><th>Email</th><th>Valid Scans</th><th>Total Scans</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>🕐 Recent Scans (Last 20)</h2>
+        <table id="logsTable">
+            <thead><tr><th>Time</th><th>Email</th><th>Roll</th><th>Volunteer</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        const API = window.location.origin;
+        const EVENT_ID = 1;
+        let TOKEN = localStorage.getItem("atc_token");
+        let autoInterval = null;
+
+        async function ensureAuth() {
+            if (!TOKEN) {
+                const email = prompt("Admin email:");
+                const password = prompt("Password:");
+                const res = await fetch(`${API}/auth/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+                if (!res.ok) { alert("Login failed"); return false; }
+                const data = await res.json();
+                TOKEN = data.access_token;
+                localStorage.setItem("atc_token", TOKEN);
+            }
+            return true;
+        }
+
+        async function loadOverview() {
+            const res = await fetch(`${API}/dashboard/overview/${EVENT_ID}`, {
+                headers: { "Authorization": `Bearer ${TOKEN}` }
+            });
+            const d = await res.json();
+            document.getElementById("total").textContent = d.total_registered;
+            document.getElementById("present").textContent = d.present;
+            document.getElementById("absent").textContent = d.absent;
+            document.getElementById("percent").textContent = d.attendance_percentage + "%";
+        }
+
+        async function loadVolunteers() {
+            const res = await fetch(`${API}/dashboard/volunteer-activity/${EVENT_ID}`, {
+                headers: { "Authorization": `Bearer ${TOKEN}` }
+            });
+            const data = await res.json();
+            const tbody = document.querySelector("#volunteerTable tbody");
+            tbody.innerHTML = data.map(v => `
+                <tr>
+                    <td>${v.volunteer_name}</td>
+                    <td>${v.email}</td>
+                    <td style="color:#10b981;">${v.valid_scans}</td>
+                    <td>${v.total_scans}</td>
+                </tr>`).join("") || "<tr><td colspan='4' style='text-align:center;color:#888;'>No volunteer activity yet</td></tr>";
+        }
+
+        async function loadLogs() {
+            const res = await fetch(`${API}/dashboard/scan-logs/${EVENT_ID}?limit=20`, {
+                headers: { "Authorization": `Bearer ${TOKEN}` }
+            });
+            const data = await res.json();
+            const tbody = document.querySelector("#logsTable tbody");
+            tbody.innerHTML = data.map(l => `
+                <tr>
+                    <td>${new Date(l.scan_time).toLocaleString()}</td>
+                    <td>${l.attendee_email}</td>
+                    <td>${l.attendee_roll}</td>
+                    <td>${l.volunteer_name}</td>
+                    <td class="status-${l.scan_result}">${l.scan_result}</td>
+                </tr>`).join("") || "<tr><td colspan='5' style='text-align:center;color:#888;'>No scans yet</td></tr>";
+        }
+
+        async function refreshAll() {
+            if (!await ensureAuth()) return;
+            await Promise.all([loadOverview(), loadVolunteers(), loadLogs()]);
+        }
+
+        async function exportCSV() {
+            const res = await fetch(`${API}/dashboard/export-csv/${EVENT_ID}`, {
+                headers: { "Authorization": `Bearer ${TOKEN}` }
+            });
+            const data = await res.json();
+            const csv = data.rows.map(r => r.map(x => `"${x}"`).join(",")).join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `attendance_event_${EVENT_ID}.csv`;
+            a.click();
+        }
+
+        function autoRefresh() {
+            const btn = document.getElementById("autoBtn");
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+                btn.textContent = "▶ Auto-Refresh: OFF";
+            } else {
+                refreshAll();
+                autoInterval = setInterval(refreshAll, 5000);
+                btn.textContent = "⏸ Auto-Refresh: ON";
+            }
+        }
+
+        refreshAll();
+    </script>
+</body>
+</html>
