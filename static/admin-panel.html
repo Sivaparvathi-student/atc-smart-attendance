@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Panel — ATC Smart Attendance</title>
+    <link rel="icon" type="image/png" href="/static/logos/atc-full.png" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #0f0f0f; color: #fff; min-height: 100vh; }
+
+        /* Top Nav */
+        .navbar {
+            background: #1a1a1a;
+            border-bottom: 3px solid #FFC107;
+            padding: 12px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .navbar-left { display: flex; align-items: center; gap: 12px; }
+        .navbar img { width: 45px; height: 45px; object-fit: contain; }
+        .navbar .title { font-size: 15px; font-weight: 800; color: #FFC107; }
+        .navbar .subtitle { font-size: 11px; color: #888; letter-spacing: 1px; }
+        .navbar-right { display: flex; align-items: center; gap: 10px; }
+        .user-badge { background: #2a2a2a; padding: 6px 12px; border-radius: 20px; font-size: 12px; color: #FFC107; }
+        .nav-btn {
+            background: transparent; color: #fff; border: 1px solid #444;
+            padding: 6px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 12px; font-weight: 600; text-decoration: none;
+        }
+        .nav-btn:hover { border-color: #FFC107; color: #FFC107; }
+
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 5px; padding: 20px 20px 0;
+            border-bottom: 1px solid #2a2a2a;
+            overflow-x: auto;
+        }
+        .tab {
+            padding: 10px 18px; background: #1a1a1a;
+            border: 1px solid #2a2a2a; border-bottom: none;
+            border-radius: 10px 10px 0 0; cursor: pointer;
+            color: #888; font-size: 13px; font-weight: 600;
+            white-space: nowrap;
+        }
+        .tab.active { background: #FFC107; color: #111; border-color: #FFC107; }
+
+        /* Content */
+        .content { padding: 25px 20px 60px; max-width: 1400px; margin: auto; }
+        .panel { display: none; }
+        .panel.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .section { background: #1a1a1a; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #2a2a2a; }
+        .section h2 { color: #FFC107; font-size: 15px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .section-header h2 { margin-bottom: 0; }
+
+        /* Stats Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 12px; border-left: 4px solid #FFC107; }
+        .card .label { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 30px; color: #FFC107; font-weight: 800; margin-top: 8px; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 11px 8px; text-align: left; border-bottom: 1px solid #2a2a2a; font-size: 13px; }
+        th { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        tbody tr:hover { background: #222; }
+
+        .badge { padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+        .badge.present { background: #10b981; color: #fff; }
+        .badge.absent { background: #444; color: #ccc; }
+        .badge.approved { background: #10b981; color: #fff; }
+        .badge.pending { background: #f59e0b; color: #111; }
+        .badge.admin { background: #FFC107; color: #111; }
+        .badge.volunteer { background: #6366f1; color: #fff; }
+
+        /* Forms */
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .form-row.single { grid-template-columns: 1fr; }
+        @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+        input, select {
+            width: 100%; padding: 11px 13px;
+            background: #0f0f0f; border: 1px solid #333;
+            border-radius: 8px; color: #fff; font-size: 13px;
+        }
+        input:focus, select:focus { outline: none; border-color: #FFC107; }
+        label { display: block; font-size: 11px; color: #888; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        button.primary {
+            background: #FFC107; color: #111;
+            border: none; padding: 12px 24px;
+            border-radius: 8px; font-weight: 700; cursor: pointer;
+            font-size: 13px; letter-spacing: 0.5px;
+        }
+        button.primary:hover { background: #e0a800; }
+        button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        button.danger { background: #ef4444; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+        button.success { background: #10b981; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+
+        .event-card { background: #0f0f0f; border: 1px solid #2a2a2a; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+        .event-card h3 { color: #FFC107; font-size: 14px; margin-bottom: 6px; }
+        .event-card p { color: #888; font-size: 12px; }
+        .event-card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 10px; }
+
+        .empty { text-align: center; color: #666; padding: 25px; font-size: 13px; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #10b981; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 999; }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #ef4444; }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar">
+    <div class="navbar-left">
+        <img src="/static/logos/atc-full.png" alt="ATC" />
+        <div>
+            <div class="title">ALIET Techpreneur Club</div>
+            <div class="subtitle">ADMIN CONTROL PANEL</div>
+        </div>
+    </div>
+    <div class="navbar-right">
+        <span class="user-badge" id="userBadge">Admin</span>
+        <a href="/admin-dashboard" class="nav-btn">📊 Live Dashboard</a>
+        <button class="nav-btn" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+    <div class="tab active" data-panel="overview">📊 Overview</div>
+    <div class="tab" data-panel="events">🎉 Events</div>
+    <div class="tab" data-panel="volunteers">👥 Volunteers</div>
+    <div class="tab" data-panel="attendees">🎟️ Attendees</div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+    <!-- OVERVIEW PANEL -->
+    <div class="panel active" id="panel-overview">
+        <div class="grid">
+            <div class="card"><div class="label">Total Events</div><div class="value" id="statEvents">-</div></div>
+            <div class="card"><div class="label">Total Users</div><div class="value" id="statUsers">-</div></div>
+            <div class="card"><div class="label">Pending Approvals</div><div class="value" id="statPending" style="color:#f59e0b;">-</div></div>
+            <div class="card"><div class="label">Registered Attendees</div><div class="value" id="statAttendees">-</div></div>
+        </div>
+        <div class="section">
+            <h2>🎯 Quick Actions</h2>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button class="primary" onclick="switchTab('events')">+ Create New Event</button>
+                <button class="primary" onclick="switchTab('volunteers')">Review Pending Volunteers</button>
+                <a href="/admin-dashboard" class="primary" style="text-decoration:none; display:inline-block; text-align:center;">Open Live Dashboard</a>
+                <a href="/scanner" class="primary" style="text-decoration:none; display:inline-block; text-align:center;">Open Scanner</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- EVENTS PANEL -->
+    <div class="panel" id="panel-events">
+        <div class="section">
+            <h2>➕ Create New Event</h2>
+            <div class="form-row">
+                <div>
+                    <label>Event Name</label>
+                    <input type="text" id="evtName" placeholder="e.g., TechFest 2026" />
+                </div>
+                <div>
+                    <label>Event Date</label>
+                    <input type="date" id="evtDate" />
+                </div>
+            </div>
+            <div class="form-row single">
+                <div>
+                    <label>Secret Key (for JWT signing — any unique string)</label>
+                    <input type="text" id="evtSecret" placeholder="e.g., techfest-2026-secret" />
+                </div>
+            </div>
+            <button class="primary" id="createEventBtn" onclick="createEvent()">CREATE EVENT</button>
+        </div>
+
+        <div class="section">
+            <h2>📋 All Events</h2>
+            <div id="eventsList"><div class="empty">Loading events...</div></div>
+        </div>
+    </div>
+
+    <!-- VOLUNTEERS PANEL -->
+    <div class="panel" id="panel-volunteers">
+        <div class="section">
+            <h2>⏳ Pending Approvals</h2>
+            <div id="pendingList"><div class="empty">Loading...</div></div>
+        </div>
+        <div class="section">
+            <h2>✅ All Users</h2>
+            <div id="allUsersList"><div class="empty">Loading...</div></div>
+        </div>
+    </div>
+
+    <!-- ATTENDEES PANEL -->
+    <div class="panel" id="panel-attendees">
+        <div class="section">
+            <div class="section-header">
+                <h2>🎟️ Attendees</h2>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <select id="attendeeEventFilter" style="width:220px; padding:8px;" onchange="loadAttendees()">
+                        <option value="">Select event...</option>
+                    </select>
+                    <input type="text" id="attendeeSearch" placeholder="Search email or roll..." style="width:200px; padding:8px;" oninput="loadAttendees()" />
+                </div>
+            </div>
+            <div id="attendeesList"><div class="empty">Select an event to view attendees</div></div>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const API = window.location.origin;
+    let TOKEN = localStorage.getItem("atc_token");
+    let ROLE = localStorage.getItem("atc_role");
+    let allEvents = [];
+
+    // ---- Auth Guard ----
+    if (!TOKEN) { window.location.href = "/login"; }
+    if (ROLE !== "admin") { alert("Admin access only"); window.location.href = "/scanner"; }
+
+    function authHeaders() {
+        return { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` };
+    }
+
+    function logout() {
+        localStorage.removeItem("atc_token");
+        localStorage.removeItem("atc_role");
+        window.location.href = "/login";
+    }
+
+    function toast(msg, isError = false) {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.className = "toast show" + (isError ? " error" : "");
+        setTimeout(() => t.className = "toast", 2500);
+    }
+
+    // ---- Tab Switching ----
+    document.querySelectorAll(".tab").forEach(t => {
+        t.addEventListener("click", () => switchTab(t.dataset.panel));
+    });
+    function switchTab(name) {
+        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.panel === name));
+        document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+        if (name === "volunteers") loadVolunteers();
+        if (name === "attendees") populateAttendeeFilter();
+    }
+
+    // ---- Load Overview ----
+    async function loadOverview() {
+        try {
+            const [usersRes, eventsRes, pendingRes] = await Promise.all([
+                fetch(`${API}/admin/all-users`, { headers: authHeaders() }).catch(() => null),
+                fetch(`${API}/admin/all-events`, { headers: authHeaders() }).catch(() => null),
+                fetch(`${API}/admin/pending-volunteers`, { headers: authHeaders() }).catch(() => null)
+            ]);
+
+            if (eventsRes && eventsRes.ok) {
+                allEvents = await eventsRes.json();
+                document.getElementById("statEvents").textContent = allEvents.length;
+            }
+            if (pendingRes && pendingRes.ok) {
+                const pending = await pendingRes.json();
+                document.getElementById("statPending").textContent = pending.length;
+            }
+            // For now, use placeholder for users + attendees
+            document.getElementById("statUsers").textContent = allEvents.length > 0 ? "—" : "0";
+            document.getElementById("statAttendees").textContent = "—";
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // ---- Create Event ----
+    async function createEvent() {
+        const name = document.getElementById("evtName").value.trim();
+        const date = document.getElementById("evtDate").value;
+        const secret = document.getElementById("evtSecret").value.trim();
+
+        if (!name || !date || !secret) {
+            toast("Please fill all fields", true);
+            return;
+        }
+
+        const btn = document.getElementById("createEventBtn");
+        btn.disabled = true; btn.textContent = "CREATING...";
+
+        try {
+            const res = await fetch(`${API}/admin/create-event`, {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({ event_name: name, event_date: date, secret_key: secret })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Failed");
+            toast("✅ Event created!");
+            document.getElementById("evtName").value = "";
+            document.getElementById("evtDate").value = "";
+            document.getElementById("evtSecret").value = "";
+            loadEvents();
+            loadOverview();
+        } catch (e) {
+            toast("❌ " + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = "CREATE EVENT";
+        }
+    }
+
+    // ---- Load Events ----
+    async function loadEvents() {
+        try {
+            const res = await fetch(`${API}/admin/all-events`, { headers: authHeaders() });
+            if (!res.ok) throw new Error("Failed to load events");
+            const events = await res.json();
+            allEvents = events;
+
+            const container = document.getElementById("eventsList");
+            if (events.length === 0) {
+                container.innerHTML = '<div class="empty">No events yet. Create your first one above!</div>';
+                return;
+            }
+
+            container.innerHTML = events.map(ev => `
+                <div class="event-card">
+                    <h3>🎉 ${ev.event_name}</h3>
+                    <p>📅 ${ev.event_date} · ID: ${ev.id} · ${ev.is_active ? '🟢 Active' : '🔴 Inactive'}</p>
+                    <div class="row">
+                        <div>
+                            <button class="success" onclick="syncRegistrations(${ev.id})">🔄 Sync Google Forms</button>
+                            <button class="success" onclick="sendQREmails(${ev.id})">📧 Send QRs</button>
+                        </div>
+                    </div>
+                </div>
+            `).join("");
+        } catch (e) {
+            document.getElementById("eventsList").innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+        }
+    }
+
+    // ---- Sync + Send Actions ----
+    async function syncRegistrations(eventId) {
+        toast("Syncing from Google Sheet...");
+        try {
+            const res = await fetch(`${API}/sync/fetch-registrations?event_id=${eventId}`, {
+                method: "POST", headers: authHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Sync failed");
+            toast(`✅ Synced! Added ${data.added}, Skipped ${data.skipped_duplicates}`);
+            loadAttendees();
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    async function sendQREmails(eventId) {
+        toast("Queueing QR emails...");
+        try {
+            const res = await fetch(`${API}/sync/send-qr-emails/${eventId}`, {
+                method: "POST", headers: authHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Send failed");
+            toast(`✅ Queued ${data.queued} email(s)!`);
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    // ---- Volunteers ----
+    async function loadVolunteers() {
+        try {
+            const [pendingRes, allRes] = await Promise.all([
+                fetch(`${API}/admin/pending-volunteers`, { headers: authHeaders() }),
+                fetch(`${API}/admin/all-users`, { headers: authHeaders() })
+            ]);
+
+            // Pending
+            const pendingContainer = document.getElementById("pendingList");
+            if (pendingRes.ok) {
+                const pending = await pendingRes.json();
+                if (pending.length === 0) {
+                    pendingContainer.innerHTML = '<div class="empty">No pending approvals. All caught up! ✨</div>';
+                } else {
+                    pendingContainer.innerHTML = `<table>
+                        <thead><tr><th>Name</th><th>Email</th><th>Action</th></tr></thead>
+                        <tbody>${pending.map(u => `
+                            <tr>
+                                <td>${u.name}</td>
+                                <td>${u.email}</td>
+                                <td><button class="success" onclick="approveUser(${u.id})">✅ Approve</button></td>
+                            </tr>`).join("")}
+                        </tbody></table>`;
+                }
+            }
+
+            // All users
+            const allContainer = document.getElementById("allUsersList");
+            if (allRes.ok) {
+                const users = await allRes.json();
+                if (users.length === 0) {
+                    allContainer.innerHTML = '<div class="empty">No users yet</div>';
+                } else {
+                    allContainer.innerHTML = `<table>
+                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody>${users.map(u => `
+                            <tr>
+                                <td>${u.name}</td>
+                                <td>${u.email}</td>
+                                <td><span class="badge ${u.role}">${u.role}</span></td>
+                                <td><span class="badge ${u.is_approved ? 'approved' : 'pending'}">${u.is_approved ? 'Approved' : 'Pending'}</span></td>
+                                <td>
+                                    ${!u.is_approved ? `<button class="success" onclick="approveUser(${u.id})">Approve</button>` : ""}
+                                    ${u.role === 'volunteer' && u.is_approved ? `<button class="success" onclick="promoteUser(${u.id})">Make Admin</button>` : ""}
+                                </td>
+                            </tr>`).join("")}
+                        </tbody></table>`;
+                }
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function approveUser(id) {
+        try {
+            const res = await fetch(`${API}/admin/approve-volunteer/${id}`, {
+                method: "POST", headers: authHeaders()
+            });
+            if (!res.ok) throw new Error("Approve failed");
+            toast("✅ User approved!");
+            loadVolunteers();
+            loadOverview();
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    async function promoteUser(id) {
+        if (!confirm("Promote this user to Admin?")) return;
+        try {
+            const res = await fetch(`${API}/admin/promote-to-admin/${id}`, {
+                method: "POST", headers: authHeaders()
+            });
+            if (!res.ok) throw new Error("Promote failed");
+            toast("✅ User promoted to admin!");
+            loadVolunteers();
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    // ---- Attendees ----
+    function populateAttendeeFilter() {
+        const sel = document.getElementById("attendeeEventFilter");
+        sel.innerHTML = '<option value="">Select event...</option>' +
+            allEvents.map(e => `<option value="${e.id}">${e.event_name}</option>`).join("");
+    }
+
+    async function loadAttendees() {
+        const eventId = document.getElementById("attendeeEventFilter").value;
+        const search = document.getElementById("attendeeSearch").value.toLowerCase().trim();
+        const container = document.getElementById("attendeesList");
+
+        if (!eventId) {
+            container.innerHTML = '<div class="empty">Select an event to view attendees</div>';
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API}/dashboard/attendees/${eventId}`, { headers: authHeaders() });
+            if (!res.ok) throw new Error("Failed to load");
+            let attendees = await res.json();
+
+            if (search) {
+                attendees = attendees.filter(a =>
+                    a.student_email.toLowerCase().includes(search) ||
+                    a.student_roll_number.toLowerCase().includes(search) ||
+                    a.student_name.toLowerCase().includes(search)
+                );
+            }
+
+            if (attendees.length === 0) {
+                container.innerHTML = '<div class="empty">No attendees found</div>';
+                return;
+            }
+
+            container.innerHTML = `<table>
+                <thead><tr><th>Name</th><th>Email</th><th>Roll</th><th>Status</th><th>Check-In Time</th><th>QR Sent</th></tr></thead>
+                <tbody>${attendees.map(a => `
+                    <tr>
+                        <td>${a.student_name}</td>
+                        <td>${a.student_email}</td>
+                        <td>${a.student_roll_number}</td>
+                        <td><span class="badge ${a.status === 'Present' ? 'present' : 'absent'}">${a.status}</span></td>
+                        <td>${a.check_in_time ? new Date(a.check_in_time).toLocaleString() : '—'}</td>
+                        <td>${a.qr_sent ? '✅' : '❌'}</td>
+                    </tr>`).join("")}
+                </tbody></table>`;
+        } catch (e) {
+            container.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+        }
+    }
+
+    // ---- Init ----
+    loadOverview();
+    loadEvents();
+
+</script>
+</body>
+</html>

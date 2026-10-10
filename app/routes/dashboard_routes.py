@@ -126,3 +126,22 @@ def export_csv(
         ])
 
     return {"event_id": event_id, "rows": csv_rows, "count": len(csv_rows) - 1}
+@router.get("/attendees/{event_id}")
+def list_attendees(
+    event_id: int,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin)
+):
+    """List all attendees for an event."""
+    attendees = db.query(models.Attendee).filter(
+        models.Attendee.event_id == event_id
+    ).order_by(models.Attendee.student_email).all()
+
+    return [{
+        "student_email": a.student_email,
+        "student_roll_number": a.student_roll_number,
+        "student_name": a.student_name,
+        "status": a.status,
+        "check_in_time": a.check_in_time.isoformat() if a.check_in_time else None,
+        "qr_sent": a.qr_sent
+    } for a in attendees]

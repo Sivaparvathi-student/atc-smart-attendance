@@ -34,7 +34,7 @@ app.include_router(dashboard_routes.router)
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to ATC Smart QR Attendance API 🚀"}
+    return FileResponse("static/index.html")
 
 
 @app.get("/health")
@@ -61,3 +61,14 @@ def scanner_ui():
 @app.get("/admin-dashboard")
 def admin_dashboard_ui():
     return FileResponse("static/admin.html")
+@app.get("/login")
+def login_page():
+    return FileResponse("static/login.html")
+
+@app.get("/register")
+def register_page():
+    return FileResponse("static/register.html")
+
+@app.get("/admin-panel")
+def admin_panel_page():
+    return FileResponse("static/admin-panel.html")

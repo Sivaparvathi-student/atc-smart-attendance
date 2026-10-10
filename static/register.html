@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register — ATC Smart Attendance</title>
+    <link rel="icon" type="image/png" href="/static/logos/atc-full.png" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #FFC107 0%, #FFD54F 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 440px;
+            padding: 40px 30px;
+        }
+        .logo { text-align: center; margin-bottom: 20px; }
+        .logo img { width: 100px; height: 100px; object-fit: contain; }
+        h1 { text-align: center; font-size: 22px; color: #111; margin-bottom: 5px; font-weight: 800; }
+        .subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 25px; letter-spacing: 1px; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 12px; font-weight: 600; color: #333; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        input {
+            width: 100%; padding: 13px 15px;
+            border: 2px solid #eee; border-radius: 10px;
+            font-size: 14px; background: #fafafa; transition: border 0.2s;
+        }
+        input:focus { outline: none; border-color: #FFC107; background: #fff; }
+        button {
+            width: 100%; padding: 14px;
+            background: #111; color: #FFC107;
+            border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 700;
+            cursor: pointer; letter-spacing: 1px;
+            margin-top: 10px; transition: all 0.2s;
+        }
+        button:hover { background: #FFC107; color: #111; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .message { padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; display: none; }
+        .message.error { background: #fee; color: #c00; display: block; }
+        .message.success { background: #efe; color: #060; display: block; }
+        .info-box {
+            background: #FFF8E1; border-left: 4px solid #FFC107;
+            padding: 12px; border-radius: 6px;
+            font-size: 12px; color: #555; margin-bottom: 18px;
+            line-height: 1.5;
+        }
+        .footer { text-align: center; margin-top: 22px; font-size: 13px; color: #666; }
+        .footer a { color: #111; font-weight: 700; text-decoration: none; border-bottom: 2px solid #FFC107; padding-bottom: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <img src="/static/logos/atc-full.png" alt="ATC Logo" />
+        </div>
+        <h1>Join as Volunteer</h1>
+        <p class="subtitle">ALIET TECHPREUR CLUB</p>
+
+        <div class="info-box">
+            ℹ️ After registering, an admin will review and approve your account. You'll be able to login once approved.
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <form id="registerForm">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="name" required placeholder="Your full name" />
+            </div>
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="email" required placeholder="you@aliet.ac.in" />
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" required minlength="6" placeholder="Min. 6 characters" />
+            </div>
+            <button type="submit" id="registerBtn">CREATE ACCOUNT</button>
+        </form>
+
+        <div class="footer">
+            Already have an account? <a href="/login">Sign in</a>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.origin;
+
+        document.getElementById("registerForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById("registerBtn");
+            const msg = document.getElementById("message");
+            btn.disabled = true;
+            btn.innerHTML = "CREATING ACCOUNT...";
+            msg.className = "message";
+
+            try {
+                const res = await fetch(`${API}/auth/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: document.getElementById("name").value.trim(),
+                        email: document.getElementById("email").value.trim().toLowerCase(),
+                        password: document.getElementById("password").value
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    msg.className = "message error";
+                    msg.textContent = data.detail || "Registration failed";
+                    btn.disabled = false;
+                    btn.textContent = "CREATE ACCOUNT";
+                    return;
+                }
+
+                msg.className = "message success";
+                msg.textContent = "✅ Registered! Waiting for admin approval. Redirecting to login...";
+                setTimeout(() => window.location.href = "/login", 2000);
+
+            } catch (err) {
+                msg.className = "message error";
+                msg.textContent = "Network error. Try again.";
+                btn.disabled = false;
+                btn.textContent = "CREATE ACCOUNT";
+            }
+        });
+    </script>
+</body>
+</html>
