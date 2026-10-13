@@ -1,126 +1,208 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ATC Scanner</title>
+    <title>ATC Scanner — Gate Check-In</title>
+    <link rel="icon" type="image/png" href="/static/logos/atc-full.png" />
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, Arial, sans-serif;
-            background: #111; color: #fff;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            padding: 15px;
-            border-bottom: 2px solid #FFC107;
-            margin-bottom: 20px;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background: #111; color: #fff; padding: 15px; min-height: 100vh; max-width: 600px; margin: auto; }
+        .header { padding: 12px; border-bottom: 2px solid #FFC107; margin-bottom: 15px; }
         .header h1 { color: #FFC107; font-size: 20px; }
         .header p { color: #888; font-size: 12px; }
-        #reader {
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 20px;
+        .logout-btn {
+            background: transparent;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        #feedback {
-            display: none;
-            padding: 30px 20px;
-            border-radius: 12px;
-            text-align: center;
-            margin-bottom: 20px;
-            animation: pop 0.3s ease-out;
-        }
-        @keyframes pop {
-            0% { transform: scale(0.9); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        .logout-btn:hover { background: #ef4444; border-color: #ef4444; }
+        #reader { border-radius: 12px; overflow: hidden; margin-bottom: 15px; background: #1c1c1c; border: 1px solid #333; }
+        #feedback { display: none; padding: 25px 15px; border-radius: 12px; text-align: center; margin-bottom: 15px; animation: pop 0.3s; }
+        @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         #feedback.valid { background: #10b981; }
         #feedback.dup { background: #f59e0b; }
         #feedback.invalid { background: #ef4444; }
-        #feedback h2 { font-size: 26px; margin-bottom: 8px; }
-        #feedback p { font-size: 15px; opacity: 0.95; }
-        #feedback .student {
-            font-size: 22px; font-weight: bold;
-            margin: 12px 0;
-        }
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            padding: 15px;
-            background: #222;
-            border-radius: 12px;
-            margin-bottom: 20px;
-        }
+        #feedback h2 { font-size: 24px; margin-bottom: 8px; }
+        #feedback .student { font-size: 20px; font-weight: bold; margin: 10px 0; }
+        .stats { display: flex; justify-content: space-around; padding: 15px; background: #222; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
         .stats div { text-align: center; }
-        .stats .num { font-size: 24px; color: #FFC107; font-weight: bold; }
+        .stats .num { font-size: 22px; color: #FFC107; font-weight: bold; }
         .stats .lbl { font-size: 11px; color: #888; text-transform: uppercase; }
-        .status-bar {
-            text-align: center;
-            font-size: 12px;
-            color: #888;
-            padding: 10px;
-        }
+        .status-bar { text-align: center; font-size: 12px; color: #888; padding: 8px; }
         .status-bar.online { color: #10b981; }
         .status-bar.offline { color: #ef4444; }
+        .user-info { text-align: center; font-size: 11px; color: #888; margin-bottom: 10px; }
+
+        .alt-controls {
+            background: #1c1c1c;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .btn-action {
+            background: #FFC107;
+            color: #000;
+            border: none;
+            padding: 9px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 4px;
+        }
+        .btn-action:hover { background: #e0a800; }
+        .btn-secondary {
+            background: #2a2a2a;
+            color: #FFC107;
+            border: 1px solid #444;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 4px;
+        }
+        .btn-secondary:hover { border-color: #FFC107; }
+
+        .cam-msg {
+            padding: 15px;
+            color: #f59e0b;
+            font-size: 13px;
+            text-align: center;
+            background: #2a1c00;
+            border: 1px solid #78350f;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎟️ ATC Scanner</h1>
-        <p>ALIET Techpreneur Club</p>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h1 style="margin:0;">🎟️ ATC Scanner</h1>
+                <p style="margin:5px 0 0 0;">ALIET Techpreneur Club</p>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="user-info" id="userInfo">Connecting...</div>
+
+    <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:12px;">
+        <label style="color:#aaa; font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">Event:</label>
+        <select id="eventSelector" style="background:#222; color:#FFC107; border:1px solid #444; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:600;" onchange="onEventChange()">
+            <option value="1">Loading events...</option>
+        </select>
     </div>
 
     <div class="stats">
-        <div>
-            <div class="num" id="statPresent">0</div>
-            <div class="lbl">Present</div>
-        </div>
-        <div>
-            <div class="num" id="statTotal">0</div>
-            <div class="lbl">Total</div>
-        </div>
-        <div>
-            <div class="num" id="statAbsent">0</div>
-            <div class="lbl">Absent</div>
-        </div>
+        <div><div class="num" id="statPresent">0</div><div class="lbl">Present</div></div>
+        <div><div class="num" id="statTotal">0</div><div class="lbl">Total</div></div>
+        <div><div class="num" id="statAbsent">0</div><div class="lbl">Absent</div></div>
     </div>
 
     <div id="feedback"></div>
+
+    <div id="camAlert" class="cam-msg"></div>
+
     <div id="reader"></div>
+
+    <!-- Backup Controls: File Upload & Manual Token Test -->
+    <div class="alt-controls">
+        <p style="font-size:12px; color:#aaa; margin-bottom:10px;">Camera issue or testing on laptop/PC?</p>
+        <label class="btn-action" style="display:inline-block; margin-bottom:6px;">
+            📁 Upload QR Image
+            <input type="file" id="qrFileInput" accept="image/*" style="display:none;" onchange="scanImageFile(this)">
+        </label>
+        <button class="btn-secondary" onclick="manualTokenPrompt()">⌨️ Paste QR Token</button>
+    </div>
+
     <div class="status-bar" id="statusBar">🔴 Offline</div>
 
     <script>
         const API_URL = window.location.origin;
-        const EVENT_ID = 1; // Change this to your event ID
+        let EVENT_ID = parseInt(new URLSearchParams(window.location.search).get("event")) || parseInt(localStorage.getItem("atc_scanner_event")) || 1;
         let TOKEN = localStorage.getItem("atc_token");
+        let ROLE = localStorage.getItem("atc_role");
         let scanning = false;
+        let html5QrCode = null;
+
+        function logout() {
+            if (confirm("Logout from scanner?")) {
+                localStorage.removeItem("atc_token");
+                localStorage.removeItem("atc_role");
+                window.location.href = "/login";
+            }
+        }
 
         async function ensureLogin() {
             if (!TOKEN) {
-                const email = prompt("Enter volunteer email:");
-                const password = prompt("Enter password:");
-                if (!email || !password) return false;
+                window.location.href = "/login";
+                return false;
+            }
 
-                const res = await fetch(`${API_URL}/auth/login`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password })
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, {
+                    headers: { "Authorization": `Bearer ${TOKEN}` }
                 });
                 if (!res.ok) {
-                    alert("Login failed");
+                    localStorage.removeItem("atc_token");
+                    localStorage.removeItem("atc_role");
+                    window.location.href = "/login";
                     return false;
                 }
-                const data = await res.json();
-                TOKEN = data.access_token;
-                localStorage.setItem("atc_token", TOKEN);
+                const user = await res.json();
+                document.getElementById("userInfo").textContent =
+                    `Logged in as: ${user.name} (${user.role})`;
+            } catch (e) {
+                window.location.href = "/login";
+                return false;
             }
+
             document.getElementById("statusBar").textContent = "🟢 Online";
             document.getElementById("statusBar").className = "status-bar online";
             return true;
+        }
+
+        async function loadActiveEvents() {
+            try {
+                const res = await fetch(`${API_URL}/scan/active-events`, {
+                    headers: { "Authorization": `Bearer ${TOKEN}` }
+                });
+                if (res.ok) {
+                    const events = await res.json();
+                    const sel = document.getElementById("eventSelector");
+                    if (events.length > 0) {
+                        sel.innerHTML = events.map(e => `<option value="${e.id}">${e.event_name} (${e.event_date})</option>`).join("");
+                        if (events.some(e => e.id == EVENT_ID)) {
+                            sel.value = EVENT_ID;
+                        } else {
+                            EVENT_ID = events[0].id;
+                            sel.value = EVENT_ID;
+                        }
+                    }
+                }
+            } catch (e) {}
+            refreshStats();
+        }
+
+        function onEventChange() {
+            const sel = document.getElementById("eventSelector");
+            EVENT_ID = parseInt(sel.value);
+            localStorage.setItem("atc_scanner_event", EVENT_ID);
+            refreshStats();
         }
 
         async function refreshStats() {
@@ -133,32 +215,26 @@
                 document.getElementById("statPresent").textContent = s.present;
                 document.getElementById("statTotal").textContent = s.total_registered;
                 document.getElementById("statAbsent").textContent = s.absent;
-            } catch (e) { console.error(e); }
+            } catch (e) {}
         }
 
         function showFeedback(data) {
             const el = document.getElementById("feedback");
-            el.className = data.color === "green" ? "valid"
-                         : data.color === "orange" ? "dup"
-                         : "invalid";
+            el.className = data.color === "green" ? "valid" : data.color === "orange" ? "dup" : "invalid";
             el.style.display = "block";
             el.innerHTML = `
-                <h2>${data.message}</h2>
+                <h2>${data.message || (data.status === 'VALID' ? 'Welcome!' : data.status)}</h2>
                 ${data.student_name ? `<div class="student">${data.student_name}</div>` : ""}
                 ${data.student_roll ? `<p>Roll: ${data.student_roll}</p>` : ""}
                 ${data.check_in_time ? `<p>⏰ ${new Date(data.check_in_time).toLocaleTimeString()}</p>` : ""}
+                ${data.sheet_sync === 'updated' ? `<p style="font-size:12px; color:#10b981; margin-top:6px;">📊 Google Sheet Updated</p>` : (data.sheet_sync && data.sheet_sync !== 'skipped' ? `<p style="font-size:11px; opacity:0.8;">Sheet: ${data.sheet_sync}</p>` : "")}
             `;
-            // Beep for valid
-            if (data.color === "green") {
-                new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=").play().catch(()=>{});
-            }
-            setTimeout(() => { el.style.display = "none"; scanning = false; }, 3000);
+            setTimeout(() => { el.style.display = "none"; scanning = false; }, 3200);
         }
 
         async function handleScan(decodedText) {
             if (scanning) return;
             scanning = true;
-
             try {
                 const res = await fetch(`${API_URL}/scan/verify`, {
                     method: "POST",
@@ -166,7 +242,7 @@
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${TOKEN}`
                     },
-                    body: JSON.stringify({ token: decodedText })
+                    body: JSON.stringify({ token: decodedText.trim() })
                 });
                 const data = await res.json();
                 showFeedback(data);
@@ -177,19 +253,62 @@
             }
         }
 
+        // Alternative 1: Scan from chosen image file
+        async function scanImageFile(input) {
+            if (!input.files || input.files.length === 0) return;
+            const file = input.files[0];
+            try {
+                if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+                const decodedText = await html5QrCode.scanFile(file, true);
+                handleScan(decodedText);
+            } catch (err) {
+                alert("❌ Could not read a valid QR code from this image. Please ensure the QR code is clear and uncropped.");
+            }
+            input.value = "";
+        }
+
+        // Alternative 2: Manual Token prompt
+        function manualTokenPrompt() {
+            const token = prompt("Paste the QR JWT token (or scanned text):");
+            if (token && token.trim()) {
+                handleScan(token.trim());
+            }
+        }
+
         async function startScanner() {
             const ok = await ensureLogin();
             if (!ok) return;
-            refreshStats();
+            await loadActiveEvents();
             setInterval(refreshStats, 10000);
 
-            const html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decodedText) => handleScan(decodedText),
-                () => {}
-            );
+            html5QrCode = new Html5Qrcode("reader");
+
+            // Smart camera launch: rear camera first -> front webcam fallback -> any camera device
+            const scanConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            try {
+                // Try rear camera (mobile)
+                await html5QrCode.start({ facingMode: "environment" }, scanConfig, handleScan, () => {});
+            } catch (e1) {
+                try {
+                    // Try front/user camera (laptop webcam)
+                    await html5QrCode.start({ facingMode: "user" }, scanConfig, handleScan, () => {});
+                } catch (e2) {
+                    try {
+                        // Try querying available camera IDs
+                        const cameras = await Html5Qrcode.getCameras();
+                        if (cameras && cameras.length > 0) {
+                            await html5QrCode.start(cameras[0].id, scanConfig, handleScan, () => {});
+                        } else {
+                            throw new Error("No cameras detected on this device.");
+                        }
+                    } catch (e3) {
+                        const alertEl = document.getElementById("camAlert");
+                        alertEl.style.display = "block";
+                        alertEl.innerHTML = `⚠️ <b>Live camera not available:</b> ${e3.message || "Permission denied or no webcam"}.<br>You can still check in attendees using <b>"Upload QR Image"</b> or <b>"Paste QR Token"</b> below.`;
+                    }
+                }
+            }
         }
 
         startScanner();

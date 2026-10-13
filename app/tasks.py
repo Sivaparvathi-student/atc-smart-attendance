@@ -17,7 +17,7 @@ def send_qr_email_task(self, to_email: str, student_name: str,
             raise Exception("Email send returned False")
         return {"status": "success", "email": to_email}
     except Exception as exc:
-        print(f"⚠️ Retrying email to {to_email} (attempt {self.request.retries + 1})")
+        print(f"[RETRY] Retrying email to {to_email} (attempt {self.request.retries + 1})")
         # Sleep briefly to avoid SMTP rate limits
         time.sleep(2)
         raise self.retry(exc=exc)

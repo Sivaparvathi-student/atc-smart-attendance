@@ -1,37 +1,54 @@
-# Virtual Environment
+# Virtual environment
 venv/
 env/
-ENV/
+.venv/
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-dist/
-*.egg-info/
-
-# Environment Variables (NEVER commit)
+# Environment variables — NEVER COMMIT
 .env
 .env.local
 .env.*.local
 
-# Google Service Account (NEVER commit)
+# Google Service Account — NEVER COMMIT
 service_account.json
-*.json
+*service_account*.json
+*.json.key
 
-# Database
-*.db
-*.sqlite3
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Logs
 *.log
+logs/
 
 # IDE
 .vscode/
 .idea/
 *.swp
-.DS_Store
+*.swo
 
-# Static outputs
-static/qrcodes/
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local DB files
+*.db
+*.sqlite3
+*.sqlite
+
+# Test/temp files
+test_db.py
+test_google.py
+test_sheet.py
+test_sheet2.py
+diagnose.py
+workshop_id.txt
+
+# Uploads
+uploads/
+static/temp/

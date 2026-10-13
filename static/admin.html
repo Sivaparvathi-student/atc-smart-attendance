@@ -34,9 +34,13 @@
     </div>
 
     <div class="actions">
+        <select id="eventSelector" style="background:#1a1a1a; color:#FFC107; border:1px solid #FFC107; padding:9px 14px; border-radius:8px; font-weight:bold; cursor:pointer;" onchange="onEventChange()">
+            <option value="1">Loading events...</option>
+        </select>
         <button onclick="refreshAll()">🔄 Refresh</button>
         <button onclick="exportCSV()">📥 Export CSV</button>
         <button onclick="autoRefresh()" id="autoBtn">▶ Auto-Refresh: OFF</button>
+        <a href="/admin-panel" style="background:#2a2a2a; color:#FFC107; padding:9px 16px; border-radius:8px; text-decoration:none; font-weight:bold; display:inline-block; margin:5px; border:1px solid #444;">⚙️ Admin Panel</a>
     </div>
 
     <div class="grid">
@@ -64,9 +68,10 @@
 
     <script>
         const API = window.location.origin;
-        const EVENT_ID = 1;
+        let EVENT_ID = parseInt(new URLSearchParams(window.location.search).get("event")) || parseInt(localStorage.getItem("atc_admin_event")) || 1;
         let TOKEN = localStorage.getItem("atc_token");
         let autoInterval = null;
+        let eventsLoaded = false;
 
         async function ensureAuth() {
             if (!TOKEN) {
@@ -83,6 +88,36 @@
                 localStorage.setItem("atc_token", TOKEN);
             }
             return true;
+        }
+
+        async function loadEventsList() {
+            if (eventsLoaded) return;
+            try {
+                const res = await fetch(`${API}/admin/all-events`, {
+                    headers: { "Authorization": `Bearer ${TOKEN}` }
+                });
+                if (res.ok) {
+                    const events = await res.json();
+                    const sel = document.getElementById("eventSelector");
+                    if (events.length > 0) {
+                        sel.innerHTML = events.map(e => `<option value="${e.id}">${e.event_name} (ID: ${e.id})</option>`).join("");
+                        if (events.some(e => e.id == EVENT_ID)) {
+                            sel.value = EVENT_ID;
+                        } else {
+                            EVENT_ID = events[0].id;
+                            sel.value = EVENT_ID;
+                        }
+                    }
+                    eventsLoaded = true;
+                }
+            } catch (e) {}
+        }
+
+        function onEventChange() {
+            const sel = document.getElementById("eventSelector");
+            EVENT_ID = parseInt(sel.value);
+            localStorage.setItem("atc_admin_event", EVENT_ID);
+            refreshAll();
         }
 
         async function loadOverview() {
@@ -129,6 +164,7 @@
 
         async function refreshAll() {
             if (!await ensureAuth()) return;
+            await loadEventsList();
             await Promise.all([loadOverview(), loadVolunteers(), loadLogs()]);
         }
 

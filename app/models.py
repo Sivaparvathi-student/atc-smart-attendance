@@ -25,6 +25,7 @@ class Event(Base):
     secret_key: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    sheet_id: Mapped[str] = mapped_column(String(255), nullable=True)
 
 
 class Attendee(Base):

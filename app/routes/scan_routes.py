@@ -43,25 +43,22 @@ def verify_qr(
             scan_result="INVALID"
         ))
         db.commit()
-            # 🔽 Sync to Google Sheets (non-blocking — failures are logged)
-    try:
-        sync_scan_to_sheet(
-            attendee.student_email,
-            attendee.student_roll_number,
-            event_id,
-            attendee.check_in_time.strftime("%Y-%m-%d %H:%M:%S")
-        )
-    except Exception as e:
-        print(f"⚠️ Sheets sync failed (non-critical): {e}")
         return {
             "status": "INVALID",
             "message": f"❌ {str(e)}",
             "color": "red"
         }
 
-    email = payload["email"]
-    roll = payload["roll"]
-    event_id = payload["event_id"]
+    email = payload.get("email")
+    roll = payload.get("roll")
+    event_id = payload.get("event_id")
+
+    if not email or not roll or not event_id:
+        return {
+            "status": "INVALID",
+            "message": "❌ Invalid QR code payload",
+            "color": "red"
+        }
 
     # Step 2: Find attendee in DB (composite PK lookup)
     attendee = db.query(models.Attendee).filter(
@@ -105,8 +102,9 @@ def verify_qr(
         }
 
     # Step 4: Mark attendance
+    now = datetime.utcnow()
     attendee.status = "Present"
-    attendee.check_in_time = datetime.utcnow()
+    attendee.check_in_time = now
 
     db.add(models.ScanLog(
         attendee_email=email,
@@ -117,6 +115,23 @@ def verify_qr(
     ))
     db.commit()
 
+    # Step 5: Sync to Google Sheets (non-blocking — attendance is already recorded)
+    sheet_sync_status = "skipped"
+    try:
+        event = db.query(models.Event).filter(models.Event.id == event_id).first()
+        sheet_id = event.sheet_id if event else None
+        res = sync_scan_to_sheet(
+            attendee.student_email,
+            attendee.student_roll_number,
+            event_id,
+            now.strftime("%Y-%m-%d %H:%M:%S"),
+            sheet_id=sheet_id
+        )
+        sheet_sync_status = res.get("status") if isinstance(res, dict) else "done"
+    except Exception as e:
+        print(f"[SCAN SHEET SYNC] Sheets sync failed (non-critical): {e}")
+        sheet_sync_status = f"error: {str(e)}"
+
     return {
         "status": "VALID",
         "message": "✅ Welcome!",
@@ -125,7 +140,8 @@ def verify_qr(
         "student_roll": attendee.student_roll_number,
         "student_email": attendee.student_email,
         "check_in_time": attendee.check_in_time.isoformat(),
-        "scanned_by": volunteer.name
+        "scanned_by": volunteer.name,
+        "sheet_sync": sheet_sync_status
     }
 
 
@@ -151,3 +167,17 @@ def event_stats(
         "present": present,
         "absent": total - present
     }
+
+
+@router.get("/active-events")
+def list_active_events(
+    db: Session = Depends(get_db),
+    volunteer: models.User = Depends(get_current_user)
+):
+    """List all active events for volunteers to select on the scanner."""
+    events = db.query(models.Event).filter(models.Event.is_active == True).order_by(models.Event.id.desc()).all()
+    return [{
+        "id": e.id,
+        "event_name": e.event_name,
+        "event_date": str(e.event_date)
+    } for e in events]

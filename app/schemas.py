@@ -29,6 +29,15 @@ class EventCreate(BaseModel):
     event_name: str
     event_date: date
     secret_key: str
+    sheet_id: str | None = None
+
+
+class EventUpdate(BaseModel):
+    event_name: str | None = None
+    event_date: date | None = None
+    secret_key: str | None = None
+    sheet_id: str | None = None
+    is_active: bool | None = None
 
 
 class EventResponse(BaseModel):
@@ -36,7 +45,7 @@ class EventResponse(BaseModel):
     event_name: str
     event_date: date
     is_active: bool
-
+    sheet_id: str | None = None
     model_config = {"from_attributes": True}
 
 

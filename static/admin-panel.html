@@ -106,12 +106,42 @@
         .event-card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 10px; }
 
         .empty { text-align: center; color: #666; padding: 25px; font-size: 13px; }
-        .toast { position: fixed; bottom: 20px; right: 20px; background: #10b981; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 999; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #10b981; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 1000; }
         .toast.show { opacity: 1; }
         .toast.error { background: #ef4444; }
+
+        /* QR Preview Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); z-index: 9999;
+            align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: #1a1a1a; border: 2px solid #FFC107; border-radius: 14px;
+            padding: 26px; max-width: 440px; width: 90%; text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+        }
+        .modal-box img {
+            width: 240px; height: 240px; border-radius: 10px; border: 3px solid #FFC107;
+            margin: 15px auto; display: block; background: #fff;
+        }
     </style>
 </head>
 <body>
+<!-- QR PREVIEW MODAL -->
+<div class="modal-overlay" id="qrModal" onclick="if(event.target===this)closeQRModal()">
+    <div class="modal-box">
+        <h3 id="qrModalTitle" style="color:#FFC107; font-size:17px; margin-bottom:6px;">Attendee QR Pass</h3>
+        <p id="qrModalSubtitle" style="color:#aaa; font-size:12px; margin-bottom:12px;"></p>
+        <img id="qrModalImg" src="" alt="QR Code Pass" />
+        <p id="qrModalInfo" style="color:#888; font-size:11px; margin-bottom:18px;"></p>
+        <div style="display:flex; justify-content:center; gap:10px;">
+            <button class="primary" style="padding:9px 18px; font-size:12px;" onclick="downloadModalQR()">📥 Download Pass</button>
+            <button class="nav-btn" style="padding:9px 18px; font-size:12px;" onclick="closeQRModal()">Close</button>
+        </div>
+    </div>
+</div>
 
 <!-- NAVBAR -->
 <div class="navbar">
@@ -161,6 +191,25 @@
 
     <!-- EVENTS PANEL -->
     <div class="panel" id="panel-events">
+        <!-- Google Service Account Info Banner -->
+        <div style="background: rgba(255, 193, 7, 0.08); border: 2px solid #FFC107; border-radius: 12px; padding: 18px 22px; margin-bottom: 22px;">
+            <div style="color: #FFC107; font-weight: 800; font-size: 14px; margin-bottom: 6px;">
+                📌 HOW TO CONNECT GOOGLE FORMS TO THIS APP (3 Steps)
+            </div>
+            <div style="font-size: 12.5px; color: #ccc; line-height: 1.6;">
+                <b>1.</b> In your Google Form, click the <b>Responses</b> tab at the top.<br/>
+                <b>2.</b> Click the green Sheets icon <b style="color:#10b981;">"Link to Sheets"</b> (or "View in Sheets") to open the Response spreadsheet.<br/>
+                <b>3.</b> In that <b>Google Sheet</b> (NOT the form editor), click the <b>Share</b> button in the top right, and add:<br/>
+                <div style="margin: 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <code style="background: #222; color: #FFC107; padding: 5px 10px; border-radius: 6px; font-size: 13px; font-family: monospace;" id="serviceBotEmail">attendance-bot@atc-attendence-510814.iam.gserviceaccount.com</code>
+                    <button class="primary" style="padding: 6px 14px; font-size: 12px;" onclick="copyBotEmail()">📋 Copy Bot Email</button>
+                </div>
+                <div style="color: #f59e0b; font-size: 12px; margin-top: 4px;">
+                    ⚠️ <b>Important:</b> You must share the <b>Responses Google Sheet</b> (spreadsheet URL), not the Google Form! Google cannot sync directly from a Form editor.
+                </div>
+            </div>
+        </div>
+
         <div class="section">
             <h2>➕ Create New Event</h2>
             <div class="form-row">
@@ -179,7 +228,13 @@
                     <input type="text" id="evtSecret" placeholder="e.g., techfest-2026-secret" />
                 </div>
             </div>
-            <button class="primary" id="createEventBtn" onclick="createEvent()">CREATE EVENT</button>
+            <div class="form-row single">
+                <div>
+                    <label>Google Sheet ID (from the Google Sheet URL between /d/ and /edit)</label>
+                    <input type="text" id="evtSheetId" placeholder="e.g., 1rHO7-GsFLiCfB_YcXh5tFrImYKpfa1v9_dfiskstnj4" />
+                </div>
+            </div>
+            <button class="primary" id="createEventBtn" onclick="handleCreateEvent()">CREATE EVENT</button>
         </div>
 
         <div class="section">
@@ -258,39 +313,71 @@
         if (name === "attendees") populateAttendeeFilter();
     }
 
+    async function loadBotEmail() {
+        try {
+            const res = await fetch(`${API}/sync/service-account-email`);
+            if (res.ok) {
+                const d = await res.json();
+                const el = document.getElementById("serviceBotEmail");
+                if (el) el.textContent = d.client_email;
+            }
+        } catch (e) {}
+    }
+
+    function copyBotEmail() {
+        const el = document.getElementById("serviceBotEmail");
+        const email = el ? el.textContent : "attendance-bot@atc-attendence-510814.iam.gserviceaccount.com";
+        navigator.clipboard.writeText(email).then(() => {
+            toast("📋 Bot email copied to clipboard!");
+        }).catch(() => {
+            prompt("Copy this email to share your Google Sheet with:", email);
+        });
+    }
+
     // ---- Load Overview ----
     async function loadOverview() {
         try {
-            const [usersRes, eventsRes, pendingRes] = await Promise.all([
-                fetch(`${API}/admin/all-users`, { headers: authHeaders() }).catch(() => null),
+            const [statsRes, eventsRes, usersRes, pendingRes] = await Promise.all([
+                fetch(`${API}/dashboard/global-stats`, { headers: authHeaders() }).catch(() => null),
                 fetch(`${API}/admin/all-events`, { headers: authHeaders() }).catch(() => null),
+                fetch(`${API}/admin/all-users`, { headers: authHeaders() }).catch(() => null),
                 fetch(`${API}/admin/pending-volunteers`, { headers: authHeaders() }).catch(() => null)
             ]);
 
-            if (eventsRes && eventsRes.ok) {
-                allEvents = await eventsRes.json();
-                document.getElementById("statEvents").textContent = allEvents.length;
+            if (statsRes && statsRes.ok) {
+                const s = await statsRes.json();
+                document.getElementById("statEvents").textContent = s.total_events;
+                document.getElementById("statUsers").textContent = s.total_users;
+                document.getElementById("statPending").textContent = s.pending_users;
+                document.getElementById("statAttendees").textContent = s.total_attendees;
+            } else {
+                if (usersRes && usersRes.ok) {
+                    const users = await usersRes.json();
+                    document.getElementById("statUsers").textContent = users.length;
+                }
+                if (eventsRes && eventsRes.ok) {
+                    allEvents = await eventsRes.json();
+                    document.getElementById("statEvents").textContent = allEvents.length;
+                }
+                if (pendingRes && pendingRes.ok) {
+                    const pending = await pendingRes.json();
+                    document.getElementById("statPending").textContent = pending.length;
+                }
             }
-            if (pendingRes && pendingRes.ok) {
-                const pending = await pendingRes.json();
-                document.getElementById("statPending").textContent = pending.length;
-            }
-            // For now, use placeholder for users + attendees
-            document.getElementById("statUsers").textContent = allEvents.length > 0 ? "—" : "0";
-            document.getElementById("statAttendees").textContent = "—";
         } catch (e) {
             console.error(e);
         }
     }
 
-    // ---- Create Event ----
-    async function createEvent() {
+    // ---- Create Event (renamed to avoid browser conflict) ----
+    async function handleCreateEvent() {
         const name = document.getElementById("evtName").value.trim();
         const date = document.getElementById("evtDate").value;
         const secret = document.getElementById("evtSecret").value.trim();
+        const sheetId = document.getElementById("evtSheetId").value.trim();
 
         if (!name || !date || !secret) {
-            toast("Please fill all fields", true);
+            toast("Please fill Event Name, Date, and Secret Key", true);
             return;
         }
 
@@ -301,7 +388,12 @@
             const res = await fetch(`${API}/admin/create-event`, {
                 method: "POST",
                 headers: authHeaders(),
-                body: JSON.stringify({ event_name: name, event_date: date, secret_key: secret })
+                body: JSON.stringify({
+                    event_name: name,
+                    event_date: date,
+                    secret_key: secret,
+                    sheet_id: sheetId || null
+                })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "Failed");
@@ -309,6 +401,7 @@
             document.getElementById("evtName").value = "";
             document.getElementById("evtDate").value = "";
             document.getElementById("evtSecret").value = "";
+            document.getElementById("evtSheetId").value = "";
             loadEvents();
             loadOverview();
         } catch (e) {
@@ -325,6 +418,7 @@
             if (!res.ok) throw new Error("Failed to load events");
             const events = await res.json();
             allEvents = events;
+            populateAttendeeFilter();
 
             const container = document.getElementById("eventsList");
             if (events.length === 0) {
@@ -333,13 +427,28 @@
             }
 
             container.innerHTML = events.map(ev => `
-                <div class="event-card">
-                    <h3>🎉 ${ev.event_name}</h3>
-                    <p>📅 ${ev.event_date} · ID: ${ev.id} · ${ev.is_active ? '🟢 Active' : '🔴 Inactive'}</p>
-                    <div class="row">
+                <div class="event-card" id="event-card-${ev.id}">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
                         <div>
+                            <h3 style="margin-bottom:4px;">🎉 ${ev.event_name}</h3>
+                            <p>📅 ${ev.event_date} · ID: ${ev.id} · ${ev.is_active ? '🟢 Active' : '🔴 Inactive'}</p>
+                        </div>
+                        <div style="font-size:12px;">
+                            ${ev.sheet_id
+                                ? `<span style="background:#222; border:1px solid #444; padding:3px 8px; border-radius:6px; color:#FFC107; font-family:monospace;" title="${ev.sheet_id}">Sheet: ${ev.sheet_id.slice(0, 15)}...</span>`
+                                : `<span style="background:rgba(239,68,68,0.2); border:1px solid #ef4444; color:#ef4444; padding:3px 8px; border-radius:6px; font-weight:600;">⚠️ No Sheet ID</span>`
+                            }
+                        </div>
+                    </div>
+
+                    <div id="sheet-status-${ev.id}" style="margin-top:10px; font-size:12px; display:none; padding:8px 12px; border-radius:8px; background:#161616;"></div>
+
+                    <div class="row" style="margin-top:12px; gap:8px;">
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <button class="success" onclick="syncRegistrations(${ev.id})">🔄 Sync Google Forms</button>
                             <button class="success" onclick="sendQREmails(${ev.id})">📧 Send QRs</button>
+                            <button class="nav-btn" style="border:1px solid #FFC107; color:#FFC107;" onclick="testSheetAccess(${ev.id})">🧪 Test Sheet Access</button>
+                            <button class="nav-btn" onclick="editSheetId(${ev.id}, '${ev.sheet_id || ''}')">✏️ Edit Sheet ID</button>
                         </div>
                     </div>
                 </div>
@@ -349,17 +458,91 @@
         }
     }
 
+    async function testSheetAccess(eventId) {
+        const statusEl = document.getElementById(`sheet-status-${eventId}`);
+        if (statusEl) {
+            statusEl.style.display = "block";
+            statusEl.innerHTML = '<span style="color:#FFC107;">⏳ Testing sheet access...</span>';
+        }
+        try {
+            const res = await fetch(`${API}/sync/test-sheet-access/${eventId}`, { headers: authHeaders() });
+            const data = await res.json();
+            if (data.status === "success") {
+                toast(`✅ Google Sheet accessible: "${data.title}"`);
+                if (statusEl) {
+                    statusEl.innerHTML = `<span style="color:#10b981; font-weight:600;">✅ Connected: "${data.title}" (${data.total_rows} rows found)</span>`;
+                }
+            } else if (data.status === "is_form") {
+                toast("⚠️ Google Form detected! Must link to Sheets", true);
+                if (statusEl) {
+                    statusEl.innerHTML = `<span style="color:#f59e0b; font-weight:700;">⚠️ You entered a Google Form link ('${data.title}'), NOT a Google Sheet!</span><br/>
+                    <div style="color:#eee; font-size:12px; margin-top:6px; line-height:1.5; background:#222; padding:10px; border-radius:6px; border-left:3px solid #f59e0b;">
+                        <b>How to connect responses:</b><br/>
+                        1. Open your Google Form in your browser.<br/>
+                        2. Click the <b>"Responses"</b> tab at the top.<br/>
+                        3. Click the green icon <b style="color:#10b981;">"Link to Sheets"</b> to open the Google Sheet.<br/>
+                        4. In that Google Sheet, click <b>"Share"</b> (top right) and add: <code style="color:#FFC107;">${data.bot_email}</code> as Editor.<br/>
+                        5. Copy the spreadsheet URL and click <b>"Edit Sheet ID"</b> below to paste it!
+                    </div>`;
+                }
+            } else {
+                toast("❌ " + (data.message || "Cannot access sheet"), true);
+                if (statusEl) {
+                    statusEl.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Cannot access sheet: ${data.message}</span><br/><small style="color:#bbb; margin-top:4px; display:block;">Share the spreadsheet with Editor access to: <code style="color:#FFC107;">${data.bot_email}</code></small>`;
+                }
+            }
+        } catch (e) {
+            toast("❌ " + e.message, true);
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:#ef4444;">Error: ${e.message}</span>`;
+            }
+        }
+    }
+
+    async function editSheetId(eventId, currentSheetId) {
+        const newSheetId = prompt(
+            "Enter Google Sheet ID for this event:\n(From Google Sheet URL: .../d/YOUR_SHEET_ID/edit)",
+            currentSheetId
+        );
+        if (newSheetId === null) return;
+        try {
+            const res = await fetch(`${API}/admin/events/${eventId}`, {
+                method: "PUT",
+                headers: authHeaders(),
+                body: JSON.stringify({ sheet_id: newSheetId.trim() })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || "Failed to update sheet ID");
+            }
+            toast("✅ Sheet ID updated successfully!");
+            loadEvents();
+            loadOverview();
+        } catch (e) {
+            toast("❌ " + e.message, true);
+        }
+    }
+
     // ---- Sync + Send Actions ----
     async function syncRegistrations(eventId) {
-        toast("Syncing from Google Sheet...");
+        toast("Syncing from Google Sheet & dispatching QR passes...");
         try {
-            const res = await fetch(`${API}/sync/fetch-registrations?event_id=${eventId}`, {
+            const res = await fetch(`${API}/sync/fetch-registrations?event_id=${eventId}&auto_send_qr=true`, {
                 method: "POST", headers: authHeaders()
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Sync failed");
-            toast(`✅ Synced! Added ${data.added}, Skipped ${data.skipped_duplicates}`);
+            if (!res.ok) {
+                const errMsg = data.detail || "Sync failed";
+                alert(`❌ Google Sheet Sync Error:\n\n${errMsg}\n\nPlease ensure your Google Sheet has Name, Email, and Roll Number columns, and that it is shared with Editor permission to the bot.`);
+                throw new Error(errMsg);
+            }
+            if (data.emails_queued > 0) {
+                toast(`✅ Synced! Added ${data.added} & Queued ${data.emails_queued} QR pass email(s)!`);
+            } else {
+                toast(`✅ Synced! Added ${data.added}, Skipped ${data.skipped_duplicates}`);
+            }
             loadAttendees();
+            loadOverview();
         } catch (e) { toast("❌ " + e.message, true); }
     }
 
@@ -372,7 +555,22 @@
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || "Send failed");
             toast(`✅ Queued ${data.queued} email(s)!`);
+            loadAttendees();
         } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    // ---- Attendees ----
+    function populateAttendeeFilter() {
+        const sel = document.getElementById("attendeeEventFilter");
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">Select event...</option>' +
+            allEvents.map(e => `<option value="${e.id}">${e.event_name} (ID: ${e.id})</option>`).join("");
+        if (currentVal && allEvents.some(e => e.id == currentVal)) {
+            sel.value = currentVal;
+        } else if (allEvents.length > 0) {
+            sel.value = allEvents[0].id;
+            loadAttendees();
+        }
     }
 
     // ---- Volunteers ----
@@ -391,12 +589,15 @@
                     pendingContainer.innerHTML = '<div class="empty">No pending approvals. All caught up! ✨</div>';
                 } else {
                     pendingContainer.innerHTML = `<table>
-                        <thead><tr><th>Name</th><th>Email</th><th>Action</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Actions</th></tr></thead>
                         <tbody>${pending.map(u => `
                             <tr>
                                 <td>${u.name}</td>
                                 <td>${u.email}</td>
-                                <td><button class="success" onclick="approveUser(${u.id})">✅ Approve</button></td>
+                                <td>
+                                    <button class="success" onclick="approveUser(${u.id})">✅ Approve</button>
+                                    <button class="danger" onclick="rejectUser(${u.id}, '${u.email}')">❌ Reject</button>
+                                </td>
                             </tr>`).join("")}
                         </tbody></table>`;
                 }
@@ -420,6 +621,7 @@
                                 <td>
                                     ${!u.is_approved ? `<button class="success" onclick="approveUser(${u.id})">Approve</button>` : ""}
                                     ${u.role === 'volunteer' && u.is_approved ? `<button class="success" onclick="promoteUser(${u.id})">Make Admin</button>` : ""}
+                                    ${u.role !== 'admin' ? `<button class="danger" onclick="deleteUser(${u.id}, '${u.email}')">🗑️ Delete</button>` : ""}
                                 </td>
                             </tr>`).join("")}
                         </tbody></table>`;
@@ -452,12 +654,6 @@
         } catch (e) { toast("❌ " + e.message, true); }
     }
 
-    // ---- Attendees ----
-    function populateAttendeeFilter() {
-        const sel = document.getElementById("attendeeEventFilter");
-        sel.innerHTML = '<option value="">Select event...</option>' +
-            allEvents.map(e => `<option value="${e.id}">${e.event_name}</option>`).join("");
-    }
 
     async function loadAttendees() {
         const eventId = document.getElementById("attendeeEventFilter").value;
@@ -488,15 +684,19 @@
             }
 
             container.innerHTML = `<table>
-                <thead><tr><th>Name</th><th>Email</th><th>Roll</th><th>Status</th><th>Check-In Time</th><th>QR Sent</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Roll</th><th>Status</th><th>Check-In Time</th><th>QR Sent</th><th>Pass Actions</th></tr></thead>
                 <tbody>${attendees.map(a => `
                     <tr>
-                        <td>${a.student_name}</td>
-                        <td>${a.student_email}</td>
-                        <td>${a.student_roll_number}</td>
+                        <td><b>${escapeHtml(a.student_name)}</b></td>
+                        <td>${escapeHtml(a.student_email)}</td>
+                        <td><code>${escapeHtml(a.student_roll_number)}</code></td>
                         <td><span class="badge ${a.status === 'Present' ? 'present' : 'absent'}">${a.status}</span></td>
                         <td>${a.check_in_time ? new Date(a.check_in_time).toLocaleString() : '—'}</td>
-                        <td>${a.qr_sent ? '✅' : '❌'}</td>
+                        <td>${a.qr_sent ? '✅ Sent' : '❌ Pending'}</td>
+                        <td>
+                            <button class="nav-btn" style="padding:4px 9px; font-size:11px; margin-right:4px;" onclick="viewAttendeeQR('${escapeAttr(a.student_email)}', '${escapeAttr(a.student_roll_number)}', ${a.event_id}, '${escapeAttr(a.student_name)}')">👁️ View QR</button>
+                            <button class="success" style="padding:4px 9px; font-size:11px;" onclick="resendAttendeeQR('${escapeAttr(a.student_email)}', '${escapeAttr(a.student_roll_number)}', ${a.event_id})">✉️ Resend</button>
+                        </td>
                     </tr>`).join("")}
                 </tbody></table>`;
         } catch (e) {
@@ -504,7 +704,90 @@
         }
     }
 
+    function escapeHtml(str) {
+        return (str || '').replace(/[&<>'"]/g, tag => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        }[tag] || tag));
+    }
+    function escapeAttr(str) {
+        return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    let currentModalQRData = null;
+    async function viewAttendeeQR(email, roll, eventId, name) {
+        toast("Loading QR pass...");
+        try {
+            const res = await fetch(`${API}/sync/preview-qr/${encodeURIComponent(email)}/${encodeURIComponent(roll)}/${eventId}`, {
+                headers: authHeaders()
+            });
+            if (!res.ok) throw new Error("Could not load QR pass");
+            const data = await res.json();
+            currentModalQRData = data;
+            document.getElementById("qrModalTitle").textContent = `${name || data.student_name}'s QR Pass`;
+            document.getElementById("qrModalSubtitle").textContent = `${email} • Roll: ${roll}`;
+            document.getElementById("qrModalImg").src = data.image_data_url;
+            document.getElementById("qrModalInfo").textContent = `Cryptographically signed pass • Event ID: ${eventId}`;
+            document.getElementById("qrModal").classList.add("active");
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    function closeQRModal() {
+        document.getElementById("qrModal").classList.remove("active");
+    }
+
+    function downloadModalQR() {
+        if (!currentModalQRData) return;
+        const a = document.createElement("a");
+        a.href = currentModalQRData.image_data_url;
+        a.download = `QR_Pass_${currentModalQRData.student_roll_number || 'attendee'}.png`;
+        a.click();
+    }
+
+    async function resendAttendeeQR(email, roll, eventId) {
+        if (!confirm(`Resend entry pass QR code to "${email}"?`)) return;
+        toast("Queuing QR pass email...");
+        try {
+            const res = await fetch(`${API}/sync/resend-qr/${encodeURIComponent(email)}/${encodeURIComponent(roll)}/${eventId}`, {
+                method: "POST", headers: authHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Resend failed");
+            toast(`✅ QR pass queued for ${email}!`);
+            loadAttendees();
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    async function rejectUser(id, email) {
+        if (!confirm(`Reject and remove "${email}"? They won't be able to login.`)) return;
+        try {
+            const res = await fetch(`${API}/admin/reject-volunteer/${id}`, {
+                method: "DELETE", headers: authHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Reject failed");
+            toast("🗑️ User rejected and removed");
+            loadVolunteers();
+            loadOverview();
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
+    async function deleteUser(id, email) {
+        if (!confirm(`Permanently delete "${email}"? This cannot be undone.`)) return;
+        if (!confirm(`Are you SURE? This will erase all data for ${email}.`)) return;
+        try {
+            const res = await fetch(`${API}/admin/delete-user/${id}`, {
+                method: "DELETE", headers: authHeaders()
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Delete failed");
+            toast("🗑️ User permanently deleted");
+            loadVolunteers();
+            loadOverview();
+        } catch (e) { toast("❌ " + e.message, true); }
+    }
+
     // ---- Init ----
+    loadBotEmail();
     loadOverview();
     loadEvents();
 

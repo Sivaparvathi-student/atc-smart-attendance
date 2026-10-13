@@ -145,3 +145,24 @@ def list_attendees(
         "check_in_time": a.check_in_time.isoformat() if a.check_in_time else None,
         "qr_sent": a.qr_sent
     } for a in attendees]
+
+
+@router.get("/global-stats")
+def global_stats(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(require_admin)
+):
+    """Aggregate statistics for admin panel overview."""
+    total_events = db.query(models.Event).count()
+    total_users = db.query(models.User).count()
+    pending_users = db.query(models.User).filter(models.User.is_approved == False).count()
+    total_attendees = db.query(models.Attendee).count()
+    total_present = db.query(models.Attendee).filter(models.Attendee.status == "Present").count()
+
+    return {
+        "total_events": total_events,
+        "total_users": total_users,
+        "pending_users": pending_users,
+        "total_attendees": total_attendees,
+        "total_present": total_present
+    }
