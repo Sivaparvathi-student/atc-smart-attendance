@@ -7,3 +7,9 @@ passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
 email-validator
+gspread
+oauth2client
+qrcode[pil]
+pillow
+celery
+redis
