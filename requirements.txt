@@ -13,3 +13,4 @@ qrcode[pil]
 pillow
 celery
 redis
+PyJWT
